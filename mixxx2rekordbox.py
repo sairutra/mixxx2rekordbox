@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 
 import argparse
+import configparser
+import os
 import sqlite3
 import sys
-import os
-import configparser
 from pathlib import Path
 from urllib.parse import quote
-from xml.etree import ElementTree as ET
 from xml.dom import minidom
+from xml.etree import ElementTree as ET
+
 
 def get_db_connection(db_file):
     """Establishes a read-only connection to the SQLite database."""
@@ -103,7 +104,7 @@ def get_track_details(conn, track_ids):
     query = f"""
         SELECT l.id, l.artist, l.title, l.album, l.year, l.genre, l.grouping,
                l.tracknumber, l.comment, l.samplerate, l.bitrate, l.bpm,
-               l.datetime_added, l.duration, tl.location, tl.filesize
+               l.datetime_added, l.duration, tl.location, tl.filesize, l.filetype
         FROM library l 
         JOIN track_locations tl ON l.location = tl.id
         WHERE l.id IN ({placeholders})
@@ -141,7 +142,7 @@ def build_xml(track_details, collections, is_playlist_mode=False, sort_order=Non
             "Grouping": data.get('grouping') or "", "Genre": data.get('genre') or "",
             "Year": str(data.get('year') or ""), "TrackNumber": str(data.get('tracknumber') or ""),
             "Comments": data.get('comment') or "", "Location": location_url,
-            "Kind": "MP3 File", "Size": str(data.get('filesize') or "0"),
+            "Kind": data.get('filetype').upper() + " File" or "", "Size": str(data.get('filesize') or "0"),
             "TotalTime": str(round(data.get('duration') or 0.0)),
             "AverageBpm": f"{data.get('bpm', 0.0):.2f}",
             "BitRate": str(data.get('bitrate') or "0"), "SampleRate": str(data.get('samplerate') or "0")
