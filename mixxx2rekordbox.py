@@ -109,7 +109,7 @@ def get_track_details(conn, track_ids):
         JOIN track_locations tl ON l.location = tl.id
         WHERE l.id IN ({placeholders})
     """
-    cues_query = f"SELECT track_id, position FROM cues WHERE track_id IN ({placeholders}) AND type = 1"
+    cues_query = f"SELECT track_id, position, type, length, hotcue, label, color FROM cues WHERE track_id IN ({placeholders})"
 
     cursor = conn.cursor()
     try:
@@ -122,7 +122,7 @@ def get_track_details(conn, track_ids):
         for row in cursor.fetchall():
             tid = row['track_id']
             if tid in track_details:
-                track_details[tid]['cues'].append(row['position'])
+                track_details[tid]['cues'].append({"position": row['position'], "type": row['type'], "length": row['length'], "hotcue": row['hotcue'], "label": row['label'], "color": row['color']})
     except sqlite3.Error as e:
         print(f"Error fetching track metadata: {e}", file=sys.stderr)
         
@@ -150,9 +150,28 @@ def build_xml(track_details, collections, is_playlist_mode=False, sort_order=Non
         track_node = ET.SubElement(collection_node, "TRACK", **track_attribs)
         
         samplerate = float(data.get('samplerate', 44100.0) or 44100.0)
-        for cue_pos in sorted(data.get('cues', [])):
-            pos = (cue_pos / 2.0) / samplerate
-            ET.SubElement(track_node, "POSITION_MARK", Name="", Type="0", Start=f"{pos:.3f}", Num="-1")
+        for d in data.get('cues', {}):
+            cue_name = d.get('label')
+            cue_type = d.get('type')
+            pos = d.get('position')
+            cue_length = d.get('length')
+            cue_start = (pos / 2) / samplerate
+            cue_end = (((pos + cue_length) / 2) / samplerate)
+            cue_color = d.get('color') # to be added later
+            cue_number = d.get('hotcue')
+
+            if (cue_type == 8): # internal mixxx cue
+                continue
+            elif (cue_type == 0): # invalid mixxx cue
+                continue
+            elif (cue_type == 6): # fade-in
+                cue_type = 1
+            elif (cue_type == 7): # fade-out
+                cue_type = 2
+            elif (cue_type == 1 or cue_type == 2): # cues and hot cues
+                cue_type = 0
+
+            ET.SubElement(track_node, "POSITION_MARK", Name=str(cue_name), Type=str(cue_type), Start=f"{cue_start:.3f}" , end=f"{cue_end:.3f}", Num=str(cue_number))
 
     playlists_root = ET.SubElement(dj_playlists, "PLAYLISTS")
     root_node = ET.SubElement(playlists_root, "NODE", Type="0", Name="ROOT", Count=str(len(collections)))
