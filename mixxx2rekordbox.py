@@ -181,6 +181,8 @@ def build_xml(track_details, collections, is_playlist_mode=False, sort_order=Non
                 ET.SubElement(track_node, "POSITION_MARK", Name=str(cue_name), Type=str(cue_type), Start=f"{cue_start:.3f}" , Num="-1")
                 ET.SubElement(track_node, "POSITION_MARK", Name=str(cue_name), Type=str(cue_type), Start=f"{cue_start:.3f}" , Num=str(cue_number))
 
+            ET.SubElement(track_node, "TEMPO", Inizio=f"{0:.3f}", Bpm=f"{data.get('bpm', 0.0):.2f}", Metro="4/4", Battito="1") #using hard-coded values because it is not sure we can find this info in mixxx db
+
     playlists_root = ET.SubElement(dj_playlists, "PLAYLISTS")
     root_node = ET.SubElement(playlists_root, "NODE", Type="0", Name="ROOT", Count=str(len(collections)))
     
