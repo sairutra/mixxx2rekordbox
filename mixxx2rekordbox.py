@@ -164,14 +164,22 @@ def build_xml(track_details, collections, is_playlist_mode=False, sort_order=Non
                 continue
             elif (cue_type == 0): # invalid mixxx cue
                 continue
-            elif (cue_type == 6): # fade-in
-                cue_type = 1
-            elif (cue_type == 7): # fade-out
-                cue_type = 2
+            elif (cue_type == 6): # fade-in (weird values in mixxx)
+                continue
+            elif (cue_type == 7): # fade-out (weird values in mixxx)
+                continue
             elif (cue_type == 1 or cue_type == 2): # cues and hot cues
                 cue_type = 0
 
-            ET.SubElement(track_node, "POSITION_MARK", Name=str(cue_name), Type=str(cue_type), Start=f"{cue_start:.3f}" , end=f"{cue_end:.3f}", Num=str(cue_number))
+            if (cue_number == -1): # skip -1 internal cues in mixxx, we will add rekordbox memory cues at same location as hotcues
+                continue
+
+            if (cue_type == 4): # loop
+                ET.SubElement(track_node, "POSITION_MARK", Name=str(cue_name), Type=str(cue_type), Start=f"{cue_start:.3f}" , End=f"{cue_end:.3f}", Num="-1")
+                ET.SubElement(track_node, "POSITION_MARK", Name=str(cue_name), Type=str(cue_type), Start=f"{cue_start:.3f}" , End=f"{cue_end:.3f}", Num=str(cue_number))
+            else:
+                ET.SubElement(track_node, "POSITION_MARK", Name=str(cue_name), Type=str(cue_type), Start=f"{cue_start:.3f}" , Num="-1")
+                ET.SubElement(track_node, "POSITION_MARK", Name=str(cue_name), Type=str(cue_type), Start=f"{cue_start:.3f}" , Num=str(cue_number))
 
     playlists_root = ET.SubElement(dj_playlists, "PLAYLISTS")
     root_node = ET.SubElement(playlists_root, "NODE", Type="0", Name="ROOT", Count=str(len(collections)))
