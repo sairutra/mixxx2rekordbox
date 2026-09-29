@@ -104,7 +104,7 @@ def get_track_details(conn, track_ids):
     query = f"""
         SELECT l.id, l.artist, l.title, l.album, l.year, l.genre, l.grouping,
                l.tracknumber, l.comment, l.samplerate, l.bitrate, l.bpm,
-               l.datetime_added, l.duration, tl.location, tl.filesize, l.filetype
+               l.datetime_added, l.duration, tl.location, tl.filesize, l.filetype, l.key
         FROM library l 
         JOIN track_locations tl ON l.location = tl.id
         WHERE l.id IN ({placeholders})
@@ -145,7 +145,9 @@ def build_xml(track_details, collections, is_playlist_mode=False, sort_order=Non
             "Kind": data.get('filetype').upper() + " File" or "", "Size": str(data.get('filesize') or "0"),
             "TotalTime": str(round(data.get('duration') or 0.0)),
             "AverageBpm": f"{data.get('bpm', 0.0):.2f}",
-            "BitRate": str(data.get('bitrate') or "0"), "SampleRate": str(data.get('samplerate') or "0")
+            "BitRate": str(data.get('bitrate') or "0"), 
+            "SampleRate": str(data.get('samplerate') or "0"),
+            "Tonality": str(data.get('key') or "")
         }
         track_node = ET.SubElement(collection_node, "TRACK", **track_attribs)
         
