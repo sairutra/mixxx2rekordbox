@@ -121,7 +121,7 @@ def get_track_details(conn, track_ids):
     query = f"""
         SELECT l.id, l.artist, l.title, l.album, l.year, l.genre, l.grouping,
                l.tracknumber, l.comment, l.samplerate, l.bitrate, l.bpm,
-               l.datetime_added, l.duration, tl.location, tl.filesize, l.filetype, l.key
+               l.datetime_added, l.duration, tl.location, tl.filesize, l.filetype, l.key_id
         FROM library l 
         JOIN track_locations tl ON l.location = tl.id
         WHERE l.id IN ({placeholders})
@@ -149,7 +149,14 @@ def build_xml(track_details, collections, is_playlist_mode=False, sort_order=Non
     """Builds the Rekordbox XML structure."""
     dj_playlists = ET.Element("DJ_PLAYLISTS", Version="1.0.0")
     ET.SubElement(dj_playlists, "PRODUCT", Name="rekordbox", Version="6.8.6", Company="AlphaTheta")
-    
+
+    # Mixxx ChromaticKey (library.key_id) -> rekordbox Alphanumeric
+    KEY_ID_TO_ALPHANUMERIC = [
+    None,
+    "8B", "3B", "10B", "5B", "12B", "7B", "2B", "9B", "4B", "11B", "6B", "1B",  # C, Db, D, Eb, E, F, F#, G, Ab, A, Bb, B
+    "5A", "12A", "7A", "2A", "9A", "4A", "11A", "6A", "1A", "8A", "3A", "10A",  # Cm, C#m, Dm, Ebm, Em, Fm, F#m, Gm, G#m, Am, Bbm, Bm
+    ]
+
     collection_node = ET.SubElement(dj_playlists, "COLLECTION", Entries=str(len(track_details)))
     for track_id, data in sorted(track_details.items()):
         location_url = f"file://localhost{quote(data.get('location', ''))}"
@@ -164,7 +171,7 @@ def build_xml(track_details, collections, is_playlist_mode=False, sort_order=Non
             "AverageBpm": f"{data.get('bpm', 0.0):.2f}",
             "BitRate": str(data.get('bitrate') or "0"), 
             "SampleRate": str(data.get('samplerate') or "0"),
-            "Tonality": str(data.get('key') or "")
+            "Tonality": str(KEY_ID_TO_ALPHANUMERIC[int(data.get('key_id'))] or ""),
         }
         track_node = ET.SubElement(collection_node, "TRACK", **track_attribs)
         
