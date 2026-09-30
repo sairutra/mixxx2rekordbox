@@ -40,16 +40,33 @@ def load_config():
             break
     return conf_dict
 
-def get_collections(conn, include_names=None, exclude_names=None, mode='crates'):
-    """Fetches crates or playlists from the database."""
-    cursor = conn.cursor()
-    all_db_items = {}
-    
+def get_collections(conn, include_names=None, exclude_names=None, mode='playlists,crates'):
+    """Fetches crates or playlists or both from the database."""
+
+    collection_data = {}
+    all_track_ids = set()
+
     table_map = {
         'crates': ('crates', 'crate_tracks', 'crate_id'),
         'playlists': ('Playlists', 'PlaylistTracks', 'playlist_id')
     }
-    main_table, link_table, fk_id = table_map[mode]
+
+    modes = mode.split(',')
+
+
+    for mode in modes:
+        main_table, link_table, fk_id = table_map[mode]
+        specific_collection, subset_track_ids  = get_specific_collection(conn, mode, include_names, exclude_names, main_table, link_table, fk_id)
+        collection_data.update(specific_collection)
+        all_track_ids.update(subset_track_ids)
+
+
+    return collection_data, all_track_ids
+
+def get_specific_collection(conn, mode, include_names, exclude_names, main_table, link_table, fk_id):
+    """Fetches either crates or playlists from the database depending on the mode."""
+    cursor = conn.cursor()
+    all_db_items = {}
 
     try:
         query = f"SELECT id, name FROM {main_table}"
@@ -211,6 +228,7 @@ def main():
     parser.add_argument("-o", "--output", default=config.get('output_path', 'rekordbox.xml'), help="Output XML path")
     
     parser.add_argument("-p", "--playlists", nargs="*", help="Export playlists. If no names given, uses config.")
+    parser.add_argument("-c", "--crates", nargs="*", help="Export crates. If no names given, exports all")
     parser.add_argument("-e", "--exclude-crates", nargs="+", 
                         default=config.get('exclude_crates', '').split(',') if config.get('exclude_crates') else [], 
                         help="Crates to exclude in default mode")
@@ -238,19 +256,28 @@ def main():
         sys.exit(0)
 
     is_playlist_mode = args.playlists is not None
+    is_crate_mode = args.crates is not None
     if is_playlist_mode:
         target_names = args.playlists
         if not target_names:
             target_names = [p.strip() for p in config.get('default_playlists', '').split(',') if p.strip()]
-        
+
         if not target_names:
             print("Error: No playlists specified via CLI or config.")
             sys.exit(1)
-            
         collections, track_ids = get_collections(conn, include_names=target_names, mode='playlists')
+    elif is_crate_mode:
+        target_names = args.crates
+        if not target_names:
+            target_names = [p.strip() for p in config.get('default_crates', '').split(',') if p.strip()]
+        if not target_names:
+            print("Error: No crates specified via CLI or config.")
+            sys.exit(1)
+        collections, track_ids = get_collections(conn, include_names=target_names, mode='crates')
+
     else:
-        # Default Crate Mode
-        collections, track_ids = get_collections(conn, exclude_names=args.exclude_crates, mode='crates')
+        # Default Both Mode
+        collections, track_ids = get_collections(conn, exclude_names=args.exclude_crates, mode='playlists,crates')
 
     if not track_ids:
         print("No tracks found.")
