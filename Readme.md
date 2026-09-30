@@ -12,9 +12,9 @@ which while not perfect remains accurate enough for most purposes.
 
 # Usage
 
-By default `mixxx2rekordbox.py` will try to export all crates from
+By default `mixxx2rekordbox.py` will try to export all crates and playlists from
 mixxx into a `rekordbox.xml` file. You can specify location of the
-database and the output file on the command line
+database and the output file on the command line. First activate the virtualenv and download dependencies with requirements.txt
 
 ```bash
 mixxx2rekordbox.py ~/.mixxx/mixxxdb.sqlite -o rekordbox.xml
@@ -55,6 +55,10 @@ With
 ```bash
 mixxx2rekordbox.py -p
 ```
+the same goes for crates with
+```bash
+mixxx2rekordbox.py -c
+```
 
 With `--list-playlists` and `--list-crates` you can get lists of
 playlists and crates in your mixxx database.
@@ -69,3 +73,10 @@ The configuration file supports `~` which points to the home directory.
 4. Expand the node to see your exported collections.
 5. Right-click a playlist or crate and select **Import to Collection**. This will copy the tracks and their cue points into your main Rekordbox database.
 
+# extra
+
+To give context to some of the files in the repo. beats_pb2.py is generated from the protocol buffer compiler with the command `protoc --python_out=. mixxx.beats.proto`
+This is because the mixxx.beats.proto file holds the definition of the protocol buffers that mixxx uses to store the beats of a track, which are used in this
+program to create the "TEMPO" xml tag use to generate the beatgrid in rekordbox. 
+
+In order to use the beats_pb2.py script correctly the virtualenv must be activated and the requirements.txt file must be used to download dependencies to read the protobuf

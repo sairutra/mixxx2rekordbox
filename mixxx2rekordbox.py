@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 
+
 import argparse
 import configparser
 import os
 import sqlite3
+import struct
 import sys
 from pathlib import Path
 from urllib.parse import quote
 from xml.dom import minidom
 from xml.etree import ElementTree as ET
+
+import beats_pb2 as pb2
 
 
 def get_db_connection(db_file):
@@ -121,7 +125,8 @@ def get_track_details(conn, track_ids):
     query = f"""
         SELECT l.id, l.artist, l.title, l.album, l.year, l.genre, l.grouping,
                l.tracknumber, l.comment, l.samplerate, l.bitrate, l.bpm,
-               l.datetime_added, l.duration, tl.location, tl.filesize, l.filetype, l.key_id
+               l.datetime_added, l.duration, tl.location, tl.filesize,
+               l.filetype, l.key_id, l.beats, l.beats_version
         FROM library l 
         JOIN track_locations tl ON l.location = tl.id
         WHERE l.id IN ({placeholders})
@@ -144,6 +149,28 @@ def get_track_details(conn, track_ids):
         print(f"Error fetching track metadata: {e}", file=sys.stderr)
         
     return track_details
+
+def calculate_tempo(beats_version, beats, samplerate):
+    inizo = 0
+    battito = 1
+    bpm = 1
+
+    if (beats_version == 'BeatGrid-2.0'):
+        beatgrid = pb2.BeatGrid()
+        beatgrid.ParseFromString(beats)
+        bpm = beatgrid.bpm.bpm
+        frame_pos = beatgrid.first_beat.frame_position
+        if (samplerate != 0):
+            inizo = frame_pos / samplerate
+    elif (beats_version == 'BeatMap-1.0'):
+        beatmap = pb2.BeatMap()
+        beatmap.ParseFromString(beats)
+        print("This track has BeatMap-1.0. Parsing of this has not been implemented yet, so tempo will not be accurate")
+    elif (beats_version == 'BeatGrid-1.0'): # legacy beatgrid in Mixxx. This case has not been tested by developer
+        print("This track has BeatGrid-1.0. Parsing of this has not been implemented yet, so tempo will not be accurate")
+
+    return inizo, battito, bpm
+
 
 def build_xml(track_details, collections, is_playlist_mode=False, sort_order=None):
     """Builds the Rekordbox XML structure."""
@@ -174,10 +201,12 @@ def build_xml(track_details, collections, is_playlist_mode=False, sort_order=Non
             "Tonality": str(KEY_ID_TO_ALPHANUMERIC[int(data.get('key_id'))] or ""),
         }
         track_node = ET.SubElement(collection_node, "TRACK", **track_attribs)
-        
+
         samplerate = float(data.get('samplerate', 44100.0) or 44100.0)
 
-        ET.SubElement(track_node, "TEMPO", Inizio=f"{0:.3f}", Bpm=f"{data.get('bpm', 0.0):.2f}", Metro="4/4", Battito="1") #using hard-coded values because it is not sure we can find this info in mixxx db
+        inizio, battito, bpm = calculate_tempo(data.get('beats_version'), data.get('beats'), samplerate)
+
+        ET.SubElement(track_node, "TEMPO", Inizio=f"{inizio:.3f}", Bpm=f"{bpm:.2f}", Metro="4/4", Battito=f"{battito}")
 
         for d in data.get('cues', {}):
             cue_name = d.get('label')
