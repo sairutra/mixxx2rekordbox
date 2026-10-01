@@ -239,6 +239,18 @@ def build_xml(track_details, collections, is_playlist_mode=False, sort_order=Non
     "5A", "12A", "7A", "2A", "9A", "4A", "11A", "6A", "1A", "8A", "3A", "10A",  # Cm, C#m, Dm, Ebm, Em, Fm, F#m, Gm, G#m, Am, Bbm, Bm
     ]
 
+    # Mixxx predefined track color palette
+    COLOR_MAPPING = {
+            "0xFCA6D7" : "0xFF007F", #Pink
+            "0xC50A08": "0xFF0000", #Red
+            "0xFF8000": "0xFFA500", #Orange 
+            "0xF8D200": "0xFFFF00",  #Yellow 
+            "0x32BE44": "0x00FF00",  #Green 
+            "0x42D4F4": "0x25FDE9",  #Aqua 
+            "0x0044FF": "0x0000FF",  #Blue 
+            "0xAF00CC": "0x660099",  #Purple
+    }
+
     collection_node = ET.SubElement(dj_playlists, "COLLECTION", Entries=str(len(track_details)))
     for track_id, data in sorted(track_details.items()):
         location_url = f"file://localhost{quote(data.get('location', ''))}"
@@ -278,8 +290,11 @@ def build_xml(track_details, collections, is_playlist_mode=False, sort_order=Non
             cue_length = d.get('length')
             cue_start = (pos / 2) / samplerate
             cue_end = (((pos + cue_length) / 2) / samplerate)
-            cue_color = d.get('color') # to be added later
+            cue_rgb = d.get('color')
             cue_number = d.get('hotcue')
+            cue_r = cue_rgb & 255
+            cue_g = (cue_rgb >> 8) & 255
+            cue_b = (cue_rgb >> 16) & 255
 
             if (cue_type == 8): # internal mixxx cue
                 continue
@@ -297,10 +312,10 @@ def build_xml(track_details, collections, is_playlist_mode=False, sort_order=Non
 
             if (cue_type == 4): # loop
                 ET.SubElement(track_node, "POSITION_MARK", Name=str(cue_name), Type=str(cue_type), Start=f"{cue_start:.3f}" , End=f"{cue_end:.3f}", Num="-1")
-                ET.SubElement(track_node, "POSITION_MARK", Name=str(cue_name), Type=str(cue_type), Start=f"{cue_start:.3f}" , End=f"{cue_end:.3f}", Num=str(cue_number))
+                ET.SubElement(track_node, "POSITION_MARK",  Red=str(cue_r), Green=str(cue_g), Blue=str(cue_b), Name=str(cue_name), Type=str(cue_type), Start=f"{cue_start:.3f}" , End=f"{cue_end:.3f}", Num=str(cue_number))
             else:
                 ET.SubElement(track_node, "POSITION_MARK", Name=str(cue_name), Type=str(cue_type), Start=f"{cue_start:.3f}" , Num="-1")
-                ET.SubElement(track_node, "POSITION_MARK", Name=str(cue_name), Type=str(cue_type), Start=f"{cue_start:.3f}" , Num=str(cue_number))
+                ET.SubElement(track_node, "POSITION_MARK", Red=str(cue_r), Green=str(cue_g), Blue=str(cue_b), Name=str(cue_name), Type=str(cue_type), Start=f"{cue_start:.3f}" , Num=str(cue_number))
 
 
     playlists_root = ET.SubElement(dj_playlists, "PLAYLISTS")
