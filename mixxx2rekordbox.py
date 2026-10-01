@@ -3,6 +3,7 @@
 
 import argparse
 import configparser
+import math
 import os
 import sqlite3
 import struct
@@ -12,7 +13,7 @@ from urllib.parse import quote
 from xml.dom import minidom
 from xml.etree import ElementTree as ET
 
-import beats_pb2 as pb2
+# import beats_pb2 as pb2
 
 
 def get_db_connection(db_file):
@@ -150,26 +151,80 @@ def get_track_details(conn, track_ids):
         
     return track_details
 
-def calculate_tempo(beats_version, beats, samplerate):
-    inizo = 0
-    battito = 1
-    bpm = 1
 
-    if (beats_version == 'BeatGrid-2.0'):
-        beatgrid = pb2.BeatGrid()
-        beatgrid.ParseFromString(beats)
-        bpm = beatgrid.bpm.bpm
-        frame_pos = beatgrid.first_beat.frame_position
-        if (samplerate != 0):
-            inizo = frame_pos / samplerate
-    elif (beats_version == 'BeatMap-1.0'):
-        beatmap = pb2.BeatMap()
-        beatmap.ParseFromString(beats)
-        print("This track has BeatMap-1.0. Parsing of this has not been implemented yet, so tempo will not be accurate")
-    elif (beats_version == 'BeatGrid-1.0'): # legacy beatgrid in Mixxx. This case has not been tested by developer
-        print("This track has BeatGrid-1.0. Parsing of this has not been implemented yet, so tempo will not be accurate")
+def _varint(buf, i):
+    value = shift = 0
+    while True:
+        b = buf[i]
+        i += 1
+        value |= (b & 0x7F) << shift
+        shift += 7
+        if b < 0x80:
+            return value, i
 
-    return inizo, battito, bpm
+
+def pb_fields(buf):
+    """(field number, value) pairs of a protobuf message."""
+    i = 0
+    while i < len(buf):
+        key, i = _varint(buf, i)
+        wire = key & 7
+        if wire == 0:
+            value, i = _varint(buf, i)
+        elif wire == 1:
+            value, i = buf[i:i + 8], i + 8
+        elif wire == 2:
+            n, i = _varint(buf, i)
+            value, i = buf[i:i + n], i + n
+        elif wire == 5:
+            value, i = buf[i:i + 4], i + 4
+        else:
+            raise ValueError(f"unexpected wire type {wire}")
+        yield key >> 3, value
+
+
+def _int32(v):
+    return v - (1 << 64) if v >= 1 << 63 else v
+
+
+def beat_frame(beat):
+    return next((_int32(v) for f, v in pb_fields(beat) if f == 1), 0)
+
+
+def read_beats(version, blob):
+    """(bpm, first frame) for a grid, or a list of frames for a beat map."""
+    if version == "BeatGrid-2.0":
+        bpm, first = 0.0, 0
+        for f, v in pb_fields(blob):
+            if f == 1:  # Bpm { double bpm = 1; }
+                bpm = next((struct.unpack("<d", x)[0] for g, x in pb_fields(v) if g == 1), 0.0)
+            elif f == 2:  # Beat first_beat
+                first = beat_frame(v)
+        return bpm, first
+    if version == "BeatMap-1.0":  # repeated Beat beat = 1
+        return [beat_frame(v) for f, v in pb_fields(blob) if f == 1]
+    if version == "BeatGrid-1.0":  # two raw doubles, as in Mixxx's fallback, not tested!
+        print('This track has BeatGrid-1.0, program might fail, since this case is untested!')
+        return struct.unpack("<dd", blob)
+    raise ValueError(version)
+
+
+def grid_tempo(bpm, first_frame, samplerate):
+    """One TEMPO whose grid also covers the intro, keeping Mixxx's first beat as beat 1."""
+    period = 60.0 / bpm
+    first = first_frame / samplerate
+    k = math.floor(first / period)
+    return [(first - k * period, bpm, (-k) % 4 + 1)]
+
+
+def map_tempos(frames, samplerate):
+    """One TEMPO per beat, as rekordbox writes a grid whose tempo moves."""
+    times = [f / samplerate for f in frames]
+    tempos = []
+    for i, t in enumerate(times):
+        gap = times[i + 1] - t if i + 1 < len(times) else t - times[i - 1]
+        tempos.append((t, 60.0 / gap, i % 4 + 1))
+    return tempos
 
 
 def build_xml(track_details, collections, is_playlist_mode=False, sort_order=None):
@@ -204,9 +259,17 @@ def build_xml(track_details, collections, is_playlist_mode=False, sort_order=Non
 
         samplerate = float(data.get('samplerate', 44100.0) or 44100.0)
 
-        inizio, battito, bpm = calculate_tempo(data.get('beats_version'), data.get('beats'), samplerate)
+        beat_info = read_beats(data.get('beats_version'), data.get('beats'))
+        tempos = None
 
-        ET.SubElement(track_node, "TEMPO", Inizio=f"{inizio:.3f}", Bpm=f"{bpm:.2f}", Metro="4/4", Battito=f"{battito}")
+        if (type(beat_info) is tuple):
+            tempos = grid_tempo(beat_info[0], beat_info[1], samplerate)
+        elif (type(beat_info) is list):
+            tempos = map_tempos(beat_info, samplerate)
+
+
+        for tempo in tempos:
+            ET.SubElement(track_node, "TEMPO", Inizio=f"{tempo[0]:.3f}", Bpm=f"{tempo[1]:.2f}", Metro="4/4", Battito=f"{tempo[2]}")
 
         for d in data.get('cues', {}):
             cue_name = d.get('label')

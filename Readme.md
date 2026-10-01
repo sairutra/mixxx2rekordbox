@@ -73,10 +73,13 @@ The configuration file supports `~` which points to the home directory.
 4. Expand the node to see your exported collections.
 5. Right-click a playlist or crate and select **Import to Collection**. This will copy the tracks and their cue points into your main Rekordbox database.
 
+# contributors
+
+- [M-Igashi](https://github.com/M-Igashi), the developer of [baken](https://github.com/M-Igashi/baken), has helped with several pointers in the right direction as seen in this [issue](https://github.com/dimashenme/mixxx2rekordbox/issues/7).
+He contributed code-wise by adding accurate tempo conversion from mixxx to rekordbox for Beatgrid-V2.0 and Beatmap-V1.0
+
 # extra
 
-To give context to some of the files in the repo. beats_pb2.py is generated from the protocol buffer compiler with the command `protoc --python_out=. mixxx.beats.proto`
-This is because the mixxx.beats.proto file holds the definition of the protocol buffers that mixxx uses to store the beats of a track, which are used in this
+To give context to some of the files in the repo. The mixxx.beats.proto file holds the definition of the protocol buffers that mixxx uses to store the beats of a track, which are used in this
 program to create the "TEMPO" xml tag use to generate the beatgrid in rekordbox. 
 
-In order to use the beats_pb2.py script correctly the virtualenv must be activated and the requirements.txt file must be used to download dependencies to read the protobuf
